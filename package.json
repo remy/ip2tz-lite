@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "duckdb": "^0.8.1"
+    "@duckdb/duckdb-wasm": "^1.27.0",
+    "duckdb": "^0.8.1",
+    "web-worker": "^1.2.0"
   }
 }
