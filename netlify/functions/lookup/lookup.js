@@ -1,12 +1,8 @@
 const duckdb = require('@duckdb/duckdb-wasm');
-// const duckdb = require( "duckdb");
-
 const path = require('path');
 const Worker = require('web-worker');
 
 const DUCKDB_DIST = path.dirname(require.resolve('@duckdb/duckdb-wasm'));
-
-module.exports = { handler };
 
 let con = null;
 
@@ -35,8 +31,7 @@ async function getConnection() {
   return con;
 }
 
-// Docs on event and context https://docs.netlify.com/functions/build/#code-your-function-2
-async function handler(event) {
+module.exports = async function handler(event) {
   try {
     let ip = false;
 
@@ -49,7 +44,7 @@ async function handler(event) {
     if (!ip) {
       return {
         body: JSON.stringify({ status: 401 }),
-        status: 401,
+        statusCode: 401,
         headers: { 'content-type': 'application/json' },
       };
     }
@@ -104,7 +99,7 @@ async function handler(event) {
       headers: { 'content-type': 'plain/text' },
     };
   }
-}
+};
 
 function resolveIP(ip) {
   const [a, b, c, d] = ip
