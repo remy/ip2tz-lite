@@ -31,7 +31,7 @@ async function getConnection() {
   return con;
 }
 
-module.exports = async function handler(event) {
+async function handler(event) {
   try {
     let ip = false;
 
@@ -99,7 +99,9 @@ module.exports = async function handler(event) {
       headers: { 'content-type': 'plain/text' },
     };
   }
-};
+}
+
+module.exports = { handler };
 
 function resolveIP(ip) {
   const [a, b, c, d] = ip
