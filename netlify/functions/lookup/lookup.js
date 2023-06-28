@@ -35,6 +35,13 @@ async function handler(event) {
   try {
     let ip = false;
 
+    console.log(
+      JSON.stringify({
+        headers: event.headers,
+        query: event.queryStringParameters,
+      })
+    );
+
     try {
       ip = resolveIP(getIP({ ...event, query: event.queryStringParameters }));
     } catch (e) {
