@@ -135,7 +135,7 @@ function getIP(req) {
     ip = '0.0.0.0';
   }
 
-  if (ip === '0.0.0.0' || Deno.env.TEST) {
+  if (ip === '0.0.0.0' || process.env.TEST) {
     ip = '86.13.179.215';
   }
 
