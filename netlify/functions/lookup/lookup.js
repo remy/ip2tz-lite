@@ -22,12 +22,16 @@ async function handler(request) {
     );
   } catch (e) {
     // silent catch
-    console.log(e.stack);
+    return {
+      body: JSON.stringify({ status: 401, stack: e.stack, message: e.message }),
+      statusCode: 401,
+      headers: { 'content-type': 'application/json' },
+    };
   }
 
   if (!ip) {
     return {
-      body: JSON.stringify({ status: 401 }),
+      body: JSON.stringify({ status: 401, message: 'no error, no IP found' }),
       statusCode: 401,
       headers: { 'content-type': 'application/json' },
     };
