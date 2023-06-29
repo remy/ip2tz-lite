@@ -8,7 +8,6 @@ const tz = getTz();
 // const view = new DataView(source.buffer);
 
 // const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
-
 const filename = './data.bin';
 
 const stat = await Deno.stat(filename);
