@@ -1,6 +1,4 @@
-import { urlParse } from 'https://deno.land/x/url_parse/mod.ts';
-import * as queryString from 'https://deno.land/x/querystring@v1.0.2/mod.js';
-import { posix } from 'https://deno.land/std@0.192.0/path/mod.ts';
+const fs = require('fs');
 
 const tz = getTz();
 
@@ -8,42 +6,47 @@ const tz = getTz();
 // const view = new DataView(source.buffer);
 
 // const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
-const filename = './data.bin';
+const filename = __dirname + '/data.bin';
+console.log(filename);
+const stat = fs.statSync(filename);
 
-const stat = await Deno.stat(filename);
-const fd = await Deno.open(filename, {
-  read: true,
-  write: false,
-  mode: 0o444,
-});
+module.exports = { handler };
 
-export default async (request) => {
-  const query = queryString.parse(urlParse(request.url).search || '');
+async function handler(request) {
+  const fd = await fs.promises.open(filename, 'r', 0o444);
+
+  console.log({ fd, filename });
+
+  // const query = queryString.parse(urlParse(request.url).search || '');
 
   let ip = false;
 
   try {
-    ip = resolveIP(getIP({ headers: request.headers, query }));
+    ip = resolveIP(
+      getIP({ headers: request.headers, query: request.queryStringParameters })
+    );
   } catch (e) {
     // silent catch
   }
 
   if (!ip) {
-    return new Response(JSON.stringify({ status: 401 }), {
-      status: 401,
+    return {
+      body: JSON.stringify({ status: 401 }),
+      statusCode: 401,
       headers: { 'content-type': 'application/json' },
-    });
+    };
   }
 
-  const tzIndex = await findTZForIPBtree(ip);
+  const tzIndex = await findTZForIPBtree(ip, fd);
 
-  return new Response(JSON.stringify(tz.get(tzIndex)), {
-    status: 200,
+  return {
+    body: JSON.stringify(tz.get(tzIndex)),
+    statusCode: 200,
     headers: { 'content-type': 'application/json' },
-  });
-};
+  };
+}
 
-function findTZForIPBtree(ip) {
+function findTZForIPBtree(ip, fd) {
   const len = stat.size;
   const blockSize = 5;
 
@@ -71,8 +74,10 @@ function findTZForIPBtree(ip) {
  * @returns UInt8Array
  */
 async function getAt({ fd, position, ip, buffer, records, inc, lastPosition }) {
-  const cursor = await Deno.seek(fd.rid, position * 5, Deno.SeekMode.Start);
-  const read = await fd.read(buffer);
+  const res = await fd.read({
+    buffer,
+    position: position * 5,
+  });
 
   const record = buffer.getUint32(0, true);
   const value = buffer.getUint8(4);
@@ -168,7 +173,7 @@ function getIP(req) {
     ip = '0.0.0.0';
   }
 
-  if (ip === '0.0.0.0' || Deno.env.TEST) {
+  if (ip === '0.0.0.0') {
     ip = '86.13.179.215';
   }
 
