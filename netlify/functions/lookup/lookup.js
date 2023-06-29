@@ -22,6 +22,7 @@ async function handler(request) {
     );
   } catch (e) {
     // silent catch
+    console.log(e.stack);
   }
 
   if (!ip) {
