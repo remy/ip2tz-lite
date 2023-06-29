@@ -7,7 +7,9 @@ const tz = getTz();
 // const source = await Deno.readFile('./data.bin');
 // const view = new DataView(source.buffer);
 
-const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
+// const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
+
+const filename = './data.bin';
 
 const stat = await Deno.stat(filename);
 const fd = await Deno.open(filename, {
