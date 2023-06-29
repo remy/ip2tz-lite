@@ -3,11 +3,17 @@ import * as queryString from 'https://deno.land/x/querystring@v1.0.2/mod.js';
 
 const tz = getTz();
 
-const source = await Deno.readFile('./result-compressed.bin');
-const view = new DataView(source.buffer);
+// const source = await Deno.readFile('./result-compressed.bin');
+// const view = new DataView(source.buffer);
+
+const stat = await Deno.stat('./result-compressed.bin');
+const fd = await Deno.open('./result-compressed.bin', {
+  read: true,
+  write: false,
+  mode: 0o444,
+});
 
 export default async (request) => {
-  console.log(request.headers);
   const query = queryString.parse(urlParse(request.url).search || '');
 
   let ip = false;
@@ -25,6 +31,99 @@ export default async (request) => {
     });
   }
 
+  const tzIndex = await findTZForIPBtree(ip);
+
+  return new Response(JSON.stringify(tz.get(tzIndex)), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+};
+
+function findTZForIPBtree(ip) {
+  const len = stat.size;
+  const blockSize = 5;
+
+  const records = len / 5;
+  const position = (records / 2) | 0;
+
+  const buffer = new DataView(new ArrayBuffer(5));
+  return getAt({
+    fd,
+    position,
+    ip,
+    buffer,
+    records,
+    inc: (records / 4) | 0,
+  });
+}
+
+/**
+ * @param {import('fs/promises').FileHandle} fd
+ * @param {number} position
+ * @param {number} records
+ * @param {number} inc
+ * @param {number} ip
+ * @param {DataView} buffer
+ * @returns UInt8Array
+ */
+async function getAt({ fd, position, ip, buffer, records, inc, lastPosition }) {
+  const cursor = await Deno.seek(fd.rid, position * 5, Deno.SeekMode.Start);
+  const read = await fd.read(buffer);
+
+  const record = buffer.getUint32(0, true);
+  const value = buffer.getUint8(4);
+
+  if (ip === record) {
+    return value;
+  }
+
+  let newPos = null;
+  if (ip >= record) {
+    newPos = position + inc;
+  } else {
+    newPos = position - inc;
+  }
+  inc = Math.round(inc / 2);
+
+  // out of bounds
+  if (newPos === 0) {
+    return 0;
+  }
+
+  // out of bounds
+  if (newPos >= records) {
+    return value;
+  }
+
+  // increment has reduced, get last record
+  if (inc === 0) {
+    return -1;
+  }
+
+  // this is likely to be the HIT
+  if (newPos === lastPosition) {
+    return -1;
+  }
+
+  const next = await getAt({
+    fd,
+    position: newPos,
+    ip,
+    buffer,
+    records,
+    inc,
+    lastPosition: position,
+  });
+
+  // returning the previous result
+  if (next === -1) {
+    return value;
+  }
+
+  return next;
+}
+
+async function findTZForIP(ip) {
   let last = null;
 
   for (let i = 0; i < source.byteLength; i += 5) {
@@ -37,18 +136,7 @@ export default async (request) => {
 
     last = value;
   }
-
-  return new Response(
-    JSON.stringify({
-      tz: tz.get(last),
-      status: 200,
-    }),
-    {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }
-  );
-};
+}
 
 function resolveIP(ip) {
   const [a, b, c, d] = ip
@@ -75,12 +163,10 @@ function getIP(req) {
   if (ip === '::1' || ip === '::ffff:127.0.0.1' || ip === '::ffff:127.0.0.1') {
     ip = '0.0.0.0';
   }
-  console.log(ip);
 
   if (ip === '0.0.0.0' || Deno.env.TEST) {
     ip = '86.13.179.215';
   }
-  console.log(ip);
 
   if (ip.includes(',')) {
     [ip] = ip.split(',');
