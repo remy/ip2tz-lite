@@ -12,8 +12,6 @@ const stat = fs.statSync(filename);
 module.exports = { handler };
 
 async function handler(request) {
-  const fd = await fs.promises.open(filename, 'r', 0o444);
-
   // const query = queryString.parse(urlParse(request.url).search || '');
 
   let ip = false;
@@ -33,6 +31,8 @@ async function handler(request) {
       headers: { 'content-type': 'application/json' },
     };
   }
+
+  const fd = await fs.promises.open(filename, 'r', 0o444);
 
   const tzIndex = await findTZForIPBtree(ip, fd);
 
