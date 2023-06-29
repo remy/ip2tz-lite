@@ -3,11 +3,11 @@ import * as queryString from 'https://deno.land/x/querystring@v1.0.2/mod.js';
 
 const tz = getTz();
 
-// const source = await Deno.readFile('./result-compressed.bin');
+// const source = await Deno.readFile('./data.bin');
 // const view = new DataView(source.buffer);
 
-const stat = await Deno.stat('./result-compressed.bin');
-const fd = await Deno.open('./result-compressed.bin', {
+const stat = await Deno.stat('./data.bin');
+const fd = await Deno.open('./data.bin', {
   read: true,
   write: false,
   mode: 0o444,
