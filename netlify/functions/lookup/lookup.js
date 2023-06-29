@@ -7,15 +7,12 @@ const tz = getTz();
 
 // const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
 const filename = __dirname + '/data.bin';
-console.log(filename);
 const stat = fs.statSync(filename);
 
 module.exports = { handler };
 
 async function handler(request) {
   const fd = await fs.promises.open(filename, 'r', 0o444);
-
-  console.log({ fd, filename });
 
   // const query = queryString.parse(urlParse(request.url).search || '');
 
@@ -38,6 +35,8 @@ async function handler(request) {
   }
 
   const tzIndex = await findTZForIPBtree(ip, fd);
+
+  await fd.close();
 
   return {
     body: JSON.stringify(tz.get(tzIndex)),
