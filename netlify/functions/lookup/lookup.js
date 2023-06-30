@@ -14,12 +14,13 @@ module.exports = { handler };
 async function handler(request) {
   // const query = queryString.parse(urlParse(request.url).search || '');
 
-  let ip = false;
+  let sourceIP;
 
   try {
-    ip = resolveIP(
-      getIP({ headers: request.headers, query: request.queryStringParameters })
-    );
+    sourceIP = getIP({
+      headers: request.headers,
+      query: request.queryStringParameters,
+    });
   } catch (e) {
     // silent catch
     return {
@@ -29,9 +30,17 @@ async function handler(request) {
     };
   }
 
+  let ip = false;
+
+  ip = resolveIP(sourceIP);
+
   if (!ip) {
     return {
-      body: JSON.stringify({ status: 401, message: 'no error, no IP found' }),
+      body: JSON.stringify({
+        status: 401,
+        message: 'could not parse IP / possibly IPv6 not supported (yet)',
+        sourceIP,
+      }),
       statusCode: 401,
       headers: { 'content-type': 'application/json' },
     };
