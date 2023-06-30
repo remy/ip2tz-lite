@@ -1,13 +1,11 @@
 const fs = require('fs');
-
+const { Address6 } = require('ip-address');
 const tz = getTz();
 
 // const source = await Deno.readFile('./data.bin');
 // const view = new DataView(source.buffer);
 
 // const filename = posix.fromFileUrl(import.meta.resolve('./data.bin'));
-const filename = __dirname + '/data.bin';
-const stat = fs.statSync(filename);
 
 module.exports = { handler };
 
@@ -34,6 +32,14 @@ async function handler(request) {
 
   ip = resolveIP(sourceIP);
 
+  if (!ip && sourceIP) {
+    // probably got ipv6 - let's try to extract
+    const v6 = new Address6(sourceIP);
+    if (Address6.isValid(sourceIP)) {
+      ip = BigInt(new Address6(sourceIP).bigInteger().toString());
+    }
+  }
+
   if (!ip) {
     return {
       body: JSON.stringify({
@@ -46,35 +52,81 @@ async function handler(request) {
     };
   }
 
-  const fd = await fs.promises.open(filename, 'r', 0o444);
-
-  const tzIndex = await findTZForIPBtree(ip, fd);
-
-  await fd.close();
+  let tzIndex;
+  try {
+    tzIndex = await findTZForIPBtree(ip);
+  } catch (e) {
+    return {
+      body: JSON.stringify({
+        status: 500,
+        message: e.message,
+        stack: e.stack,
+        sourceIP,
+      }),
+      statusCode: 500,
+      headers: { 'content-type': 'application/json' },
+    };
+  }
 
   return {
-    body: JSON.stringify(tz.get(tzIndex)),
+    body: JSON.stringify({ tz: tz.get(tzIndex), ip: sourceIP }),
     statusCode: 200,
     headers: { 'content-type': 'application/json' },
   };
 }
 
-function findTZForIPBtree(ip, fd) {
-  const len = stat.size;
-  const blockSize = 5;
+async function findTZForIPBtree(ip) {
+  let filename;
 
-  const records = len / 5;
+  let blockSize = 5;
+  if (typeof ip === 'bigint') {
+    // let's just support lower or upper for the moment
+    blockSize = 8 + 1; // 64bit + 1 byte
+
+    const lower = ip & 0xffffffffffffffffn;
+    const upper = ip >> 64n;
+
+    if (lower !== 0n && upper !== 0n) {
+      filename = __dirname + '/ipv6-full.bin';
+      blockSize += 8;
+      // throw new Error('This current IPv6 address is not supported yet.');
+    } else if (lower === 0) {
+      filename = __dirname + '/ipv6-upper.bin';
+    } else if (upper === 0) {
+      filename = __dirname + '/ipv6-lower.bin';
+    }
+  } else {
+    filename = __dirname + '/ipv4.bin';
+  }
+
+  const size = (await fs.promises.stat(filename)).size;
+
+  const fd = await fs.promises.open(filename, 'r', 0o444);
+
+  const records = size / blockSize;
   const position = (records / 2) | 0;
 
-  const buffer = new DataView(new ArrayBuffer(5));
-  return getAt({
-    fd,
-    position,
-    ip,
-    buffer,
-    records,
-    inc: (records / 4) | 0,
-  });
+  const buffer = new DataView(new ArrayBuffer(blockSize));
+  let result;
+
+  try {
+    result = await getAt({
+      fd,
+      position,
+      ip,
+      buffer,
+      records,
+      inc: (records / 4) | 0,
+      blockSize,
+    });
+  } catch (e) {
+    await fd.close();
+    throw e;
+  }
+
+  await fd.close();
+
+  return result;
 }
 
 /**
@@ -86,14 +138,41 @@ function findTZForIPBtree(ip, fd) {
  * @param {DataView} buffer
  * @returns UInt8Array
  */
-async function getAt({ fd, position, ip, buffer, records, inc, lastPosition }) {
+async function getAt({
+  fd,
+  position,
+  ip,
+  buffer,
+  records,
+  inc,
+  lastPosition,
+  blockSize,
+}) {
   const res = await fd.read({
     buffer,
-    position: position * 5,
+    position: position * blockSize,
   });
 
-  const record = buffer.getUint32(0, true);
-  const value = buffer.getUint8(4);
+  let is128bit = false;
+
+  let method = 'getUint32';
+  if (blockSize > 8) {
+    method = 'getBigUint64';
+    if (blockSize === 17) {
+      /// 128bit
+      is128bit = true;
+    }
+  }
+
+  let record = buffer[method](0, true);
+
+  if (is128bit) {
+    let lower = BigInt(buffer[method](8, true));
+    record = BigInt(record);
+    record = (record << 64n) + lower;
+  }
+
+  const value = buffer.getUint8(blockSize - 1);
 
   if (ip === record) {
     return value;
@@ -135,6 +214,7 @@ async function getAt({ fd, position, ip, buffer, records, inc, lastPosition }) {
     records,
     inc,
     lastPosition: position,
+    blockSize,
   });
 
   // returning the previous result
@@ -240,3 +320,24 @@ function getTz() {
     )
   );
 }
+
+const toHex = (n, size = 8) => {
+  if (n < 0) {
+    n = parseInt(toBinary(n, size), 2);
+  }
+  return n
+    .toString(16)
+    .padStart(size / (8 / 2), 0)
+    .toUpperCase();
+};
+
+const toBinary = (n, size = 8) => {
+  if (n < 0) {
+    return Array.from({ length: size }, (_, i) => {
+      return ((n >> i) & 1) === 1 ? 1 : 0;
+    })
+      .reverse()
+      .join('');
+  }
+  return n.toString(2).padStart(size, 0);
+};
