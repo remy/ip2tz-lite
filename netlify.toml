@@ -7,3 +7,8 @@
   from = "/"
   to = "/v1/"
   status = 302
+
+
+[[edge_functions]]
+function = "v2"
+path = "/v2"
