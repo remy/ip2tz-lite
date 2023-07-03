@@ -1,4 +1,4 @@
-import { Temporal } from 'npm:@js-temporal/polyfill';
+import { Temporal } from 'https://esm.sh/@js-temporal/polyfill';
 
 export default async function handler(request, context) {
   const instant = Temporal.Now.instant();
