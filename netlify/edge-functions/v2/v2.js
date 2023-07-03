@@ -603,6 +603,7 @@ const raw = {
   'W-SU': '+03:00',
   Zulu: '+00:00',
 };
+
 const map = Object.keys(raw).reduce((acc, curr) => {
   const offset = raw[curr];
   let [, dir, hour, min] = offset.match(/([+-])(\d{2}):(\d{2})/);
@@ -625,6 +626,7 @@ export default async (request, context) => {
     JSON.stringify({
       ...context.geo,
       offset: raw[context.geo.timezone],
+      DST: 'unknown',
       ip: context.ip,
     }),
     {
