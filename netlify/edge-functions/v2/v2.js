@@ -1,8 +1,7 @@
 import { Temporal } from 'https://esm.sh/@js-temporal/polyfill';
 
 export default async function handler(request, context) {
-  const instant = Temporal.Now.instant();
-  const zone = instant.toZonedDateTimeISO(context.geo.timezone);
+  const zone = Temporal.Now.instant().toZonedDateTimeISO(context.geo.timezone);
 
   const res = {
     ...context.geo,
@@ -11,6 +10,6 @@ export default async function handler(request, context) {
   };
 
   return new Response(JSON.stringify(res), {
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 }
